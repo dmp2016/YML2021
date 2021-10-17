@@ -20,6 +20,11 @@ df_org <- read_csv("Data/organisations.csv",
                      rubrics_id = col_character(),
                      features_id = col_character()))
 
+df_org$average_bill[df_org$city == "msk" & is.na(df_org$average_bill)] <- 
+  mean(df_org$average_bill[df_org$city == "msk"], na.rm = T)
+df_org$average_bill[df_org$city == "spb" & is.na(df_org$average_bill)] <- 
+  mean(df_org$average_bill[df_org$city == "spb"], na.rm = T)
+
 
 df_users <- read_csv("Data/users.csv",
                      col_types = cols(
@@ -147,7 +152,7 @@ df_org_visited <- df_org %>%
   mutate(p_main = p_tourist_visit * p_tourist_like)
 
 
-df_org_visited$average_bill[is.na(df_org_visited$average_bill)] <- mean(df_org_visited$average_bill, na.rm = T)
+# df_org_visited$average_bill[is.na(df_org_visited$average_bill)] <- mean(df_org_visited$average_bill, na.rm = T)
 
 
 # Cредние и последние оценки туристов из тестового датасета посещенных организаций
