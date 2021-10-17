@@ -51,15 +51,22 @@ df_train_rev <- df_reviews %>% filter(ts < max(ts) - 107)
 
 # Готовим тестовый датасет
 
-df_train_org <- df_train_rev %>% 
+# df_train_org <- df_train_rev %>% 
+#   select(org_id) %>% 
+#   distinct()
+# 
+# df_train_users <- df_train_rev %>% 
+#   select(user_id) %>% 
+#   distinct()
+
+df_test_rev <- df_reviews %>% filter(ts >= max(ts) - 107)
+
+
+df_org_in_test <- df_test_rev %>% 
+  filter(org_city != user_city) %>% 
   select(org_id) %>% 
   distinct()
 
-df_train_users <- df_train_rev %>% 
-  select(user_id) %>% 
-  distinct()
-
-df_test_rev <- df_reviews %>% filter(ts >= max(ts) - 107)
 
 df_test_rev <- df_test_rev %>% 
   filter(rating >= 4) %>% 
@@ -75,10 +82,7 @@ df_test_users <- df_test_rev %>%
   summarise(target = paste(org_id, collapse = " "))
 
 
-df_test_rev <- NULL
-
-
-df_test_users <- sample_n(df_test_users, size = 1000)
+# df_test_users <- sample_n(df_test_users, size = 1000)
 
 nrow(df_test_users)
 #################################################################
@@ -107,7 +111,7 @@ sum(is.na(df_train_rev$rating))
 # Вероятности посещения организации неким туристом
 
 df_p_org_tourist_visit <- df_train_rev %>% 
-  filter(ts >= max(ts) - 380) %>% # уберем старьё
+  filter(ts >= max(ts) - 365) %>% # уберем старьё
   filter(org_city != user_city) %>% 
   group_by(org_city, org_id) %>% 
   summarise(cnt_tourist_visit = n(), .groups = "drop")
@@ -125,7 +129,7 @@ df_p_org_tourist_visit$p_tourist_visit <-
 # Вероятности, что абстрактный турист поставит организации положительный рейтинг
 
 df_p_tourist_good_rating <- df_train_rev %>% 
-  filter(ts >= max(ts) - 380) %>% # уберем старьё
+  filter(ts >= max(ts) - 365) %>% # уберем старьё
   filter(org_city != user_city) %>% 
   group_by(org_city, org_id) %>% 
   summarise(p_tourist_like = sum(rating >= 4) / n(), 
@@ -134,12 +138,16 @@ df_p_tourist_good_rating <- df_train_rev %>%
 
 
 # Датасет с организациями, которые посещали туристы и вероятностями их посещениями туристов
-# и вероятностями получить хорошую оценку у туристов
+# и вероятностями получить хорошую оценку у абстрактного туриста
 
 df_org_visited <- df_org %>% 
+  rename(org_rating = rating) %>% 
   inner_join(df_p_org_tourist_visit %>% select(org_id, p_tourist_visit), by = "org_id") %>% 
   inner_join(df_p_tourist_good_rating %>% select(org_id, p_tourist_like), by = "org_id") %>% 
   mutate(p_main = p_tourist_visit * p_tourist_like)
+
+
+df_org_visited$average_bill[is.na(df_org_visited$average_bill)] <- mean(df_org_visited$average_bill, na.rm = T)
 
 
 # Cредние и последние оценки туристов из тестового датасета посещенных организаций
@@ -156,8 +164,9 @@ df_tourist_rating <-
             .groups = "drop") %>% 
   mutate(p_user_like = ifelse(last_rating >= 4, 1, 0)) %>% 
   inner_join(df_org_visited %>% select(org_id, 
-                                       org_rating = rating, 
+                                       org_rating, 
                                        average_bill,
+                                       p_tourist_visit,
                                        p_tourist_like), by = "org_id")
 
 
@@ -169,21 +178,105 @@ df_user_rev_another_cnt <- df_tourist_rating %>%
   na.omit() %>% 
   summarise(cnt = n())
 
+
+##################################################################################
+
+
+
+# Датасет с результатами ЛР для оценок каждого туриста
+
+df_tourist_rating_fit <- df_tourist_rating %>% 
+  # filter(!is.na(org_rating)) %>% 
+  group_by(user_id) %>% 
+  filter(n() > 5) %>% 
+  summarise(LR_fit = 
+              list(
+                glm(p_user_like_logical ~ p_tourist_like, 
+                    data = tibble(
+                      p_user_like_logical = as.logical(p_user_like == 1),
+                      org_rating = org_rating,
+                      p_tourist_like = p_tourist_like),
+                    family = "binomial")),
+            pp = n())
+
+
+nrow(df_tourist_rating_fit)
+sum(is.na(df_tourist_rating$p_tourist_like))
+
+#############################################################################
+
+colnames(df_tourist_rating)
+
+dd <- df_tourist_rating %>% 
+  inner_join(df_tourist_rating_fit, by = "user_id")
+
+dd$predict <- NA
+
+for (ind in 1: nrow(dd)){
+  LR_res <- tryCatch(predict(object = dd$LR_fit[ind][[1]], 
+                   newdata = dd[ind, ], 
+                   type="response")[1],
+                   warning = function(e) {print(dd$user_id[ind])})
+  dd$predict[ind] <- LR_res
+}
+
+dd %>% filter(user_id == "13442058395429633345") %>% 
+  select(p_user_like, p_tourist_like, predict)
+
+13442058395429633345
+
+dd1 <- dd %>% 
+  select(p_user_like, p_tourist_like, predict)
+
+
+apply(df_tourist_rating[1:5, ], MARGIN = 2, FUN = function(x) {
+  print(predict(x["fit"][[1]], 
+                tibble(org_rating = x["org_rating"],
+                       p_tourist_like = x["p_tourist_like"],
+                       average_bill = x["average_bill"])))})
+
+
+################################################################
+
 sum(df_user_rev_another_cnt$cnt > 2)
 
 head(df_user_rev_another_cnt$user_id[df_user_rev_another_cnt$cnt == 4], 20)
 
 
 df_tt <- df_tourist_rating %>% 
-  filter(user_id == "11304445917051049721") %>% 
-  na.omit()
+  filter(user_id == "13442058395429633345")
 
 df_tt$p_user_like <- as.logical(df_tt$p_user_like == 1)
-df_tt$average_bill <- df_tt$average_bill/mean(df_tt$average_bill)
+# df_tt$average_bill <- df_tt$average_bill/mean(df_tt$average_bill)
 
-fit <- glm(data = df_tt, p_user_like ~ org_rating + p_tourist_like, family = "binomial")
+fit <- glm(p_user_like ~ org_rating + p_tourist_like, 
+           data = df_tt,
+           family = "binomial")
 
-tibble(y1 = predict(object = fit, newdata = df_tt, type="response"), y2 = df_tt$p_user_like)
+predict(object = fit, newdata = df_tt, type="response")
+
+d <- tibble(y1 = predict(object = fit, newdata = df_org_visited, type="response"), 
+       y2 = df_org_visited$p_tourist_like)
+
+
+d <- tibble(a = c(1, 2), b = list(fit))
+
+d$b[1][[1]]
+predict(object = d$b[1][[1]], newdata = df_tt, type="response")
+predict(object = fit, newdata = df_tt, type="response")
+
+
+df_tourist_rating_fit <- df_tourist_rating %>% 
+  group_by(org_id) %>% 
+  filter(n() > 2) %>% 
+  summarise(fit = list(
+    glm(p_user_like ~ org_rating + p_tourist_like + average_bill, 
+        data = df_tt,
+        family = "binomial")
+  ))
+  
+df_tourist_rating_fit$fit[1][[1]]
+
 
 #################################################################
 # Вариант с масимальным рейтингом среди туристов + уточнение 
