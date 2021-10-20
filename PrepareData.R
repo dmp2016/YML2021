@@ -20,10 +20,10 @@ df_org <- read_csv("Data/organisations.csv",
                      rubrics_id = col_character(),
                      features_id = col_character()))
 
-df_org$average_bill[df_org$city == "msk" & is.na(df_org$average_bill)] <- 
-  mean(df_org$average_bill[df_org$city == "msk"], na.rm = T)
-df_org$average_bill[df_org$city == "spb" & is.na(df_org$average_bill)] <- 
-  mean(df_org$average_bill[df_org$city == "spb"], na.rm = T)
+# df_org$average_bill[df_org$city == "msk" & is.na(df_org$average_bill)] <- 
+#   mean(df_org$average_bill[df_org$city == "msk"], na.rm = T)
+# df_org$average_bill[df_org$city == "spb" & is.na(df_org$average_bill)] <- 
+#   mean(df_org$average_bill[df_org$city == "spb"], na.rm = T)
 
 
 df_users <- read_csv("Data/users.csv",
@@ -33,8 +33,13 @@ df_users <- read_csv("Data/users.csv",
                      ))
 
 
-df_reviews <- df_reviews %>% inner_join(df_org %>% select(org_id, org_city = city), by = "org_id")
-df_reviews <- df_reviews %>% inner_join(df_users %>% select(user_id, user_city = city), by = "user_id")
+df_reviews <- df_reviews %>% inner_join(df_org %>% select(org_id, 
+                                                          org_city = city, 
+                                                          average_bill = average_bill,
+                                                          org_rating = rating), 
+                                        by = "org_id")
+df_reviews <- df_reviews %>% inner_join(df_users %>% select(user_id, user_city = city), 
+                                        by = "user_id")
 
 max(df_reviews$ts)
 
@@ -152,12 +157,9 @@ df_org_visited <- df_org %>%
   mutate(p_main = p_tourist_visit * p_tourist_like)
 
 
-# df_org_visited$average_bill[is.na(df_org_visited$average_bill)] <- mean(df_org_visited$average_bill, na.rm = T)
-
-
 # Cредние и последние оценки туристов из тестового датасета посещенных организаций
 
-df_tourist_rating <- 
+df_test_tourist_rating <- 
   df_train_rev %>% 
   filter(user_city != org_city) %>% 
   inner_join(df_test_users %>% select(user_id), by = "user_id") %>% 
@@ -178,7 +180,7 @@ df_tourist_rating <-
 # Датасет с количеством отзывов пользователей из тестового датасета 
 # для организаций в другом городе
 
-df_user_rev_another_cnt <- df_tourist_rating %>% 
+df_user_rev_another_cnt <- df_test_tourist_rating %>% 
   group_by(user_id) %>% 
   na.omit() %>% 
   summarise(cnt = n())

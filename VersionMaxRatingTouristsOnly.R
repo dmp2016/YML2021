@@ -6,7 +6,7 @@ df_org_rate_msk <- head(
   df_train_rev %>% 
     filter(org_city == "msk" & rating >= 4 & user_city == "spb") %>% 
     filter(ts >= max(ts) - 380) %>% # уберем старьё
-    group_by(org_id) %>% 
+    group_by(org_id, average_bill) %>% 
     summarise(cnt = n()) %>% 
     arrange(desc(cnt)),
   20)
@@ -16,7 +16,7 @@ df_org_rate_spb <- head(
   df_train_rev %>% 
     filter(org_city == "spb" & rating >= 4 & user_city == "msk") %>% 
     filter(ts >= max(ts) - 380) %>% # уберем старьё
-    group_by(org_id) %>% 
+    group_by(org_id, average_bill) %>% 
     summarise(cnt = n()) %>% 
     arrange(desc(cnt)),
   20)

@@ -22,11 +22,8 @@ df_tourist_rating_filter <- df_tourist_rating %>%
   inner_join(df_test_oper %>% select(user_id), by = "user_id")
 
 df_user_rating_filter <- df_train_rev %>% 
-  inner_join(df_test_oper %>% select(user_id), by = "user_id") %>% 
-  inner_join(df_org %>% select(org_id, average_bill), by = "org_id")
+  inner_join(df_test_oper %>% select(user_id), by = "user_id")
 
-# df_user_rating_filter$average_bill[is.na(df_user_rating_filter$average_bill)] <- 
-#   mean(df_user_rating_filter$average_bill, na.rm = T)
 
 sum(is.na(df_tourist_rating_filter$average_bill))
 sum(is.na(df_user_rating_filter$average_bill))
@@ -48,7 +45,8 @@ for (ind in 1:nrow(df_test_oper)){
   df_tourist_rating_oper <- df_user_rating_filter %>% 
     filter(user_id == cur_user_id)
   
-  if (nrow(df_tourist_rating_oper) > 10){
+  if (nrow(df_tourist_rating_oper) > 5){
+    min_bill <- df_tourist_rating_oper$
     cur_mean <- mean(df_tourist_rating_oper$average_bill)
     cur_sd <- sd(df_tourist_rating_oper$average_bill)
     df_org_visited_oper$bill_oper <- df_org_visited_oper$average_bill
